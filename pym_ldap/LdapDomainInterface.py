@@ -64,3 +64,6 @@ class LdapDomainInterface:
     def search_org_units_ex(self, property_name: str = None, property_value: str = None, recursive: bool = True,
                             properties_dict: dict = None) -> typing.Any:
         pass
+
+    def test_func(self, myarg):
+        pass

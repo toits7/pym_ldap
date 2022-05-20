@@ -1,5 +1,6 @@
 import typing
 
+
 class LdapObject:
     __multi_val_props = ["memberof", "member"]
     _user_id_property_name: str

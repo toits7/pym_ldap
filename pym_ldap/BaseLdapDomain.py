@@ -9,7 +9,7 @@ from .LdapDomainInterface import LdapDomainInterface
 #from .LdapObjectCollection import LdapObjectCollection
 #import inspect
 from operator import itemgetter
-#from .Functions import grant_write_property_access, reset_ldap_object_access
+from .Functions import grant_write_property_access, reset_ldap_object_access
 import pym_logger as logger
 import re
 
@@ -258,7 +258,7 @@ class BaseLdapDomain(LdapDomainInterface):
         for uniq_value in uniq_values:
             ldap_object = self.get_object(uniq_value=uniq_value, properties=properties, object_class=object_class)
             if ldap_object:
-                result.append()
+                result.append(ldap_object)
         return result
 
     def get_user(self, uniq_value: str, properties: typing.List[str] = None) -> dict:
@@ -343,7 +343,53 @@ class BaseLdapDomain(LdapDomainInterface):
     def remove_group_members(self, group_dn, member_dns):
         remove_group_member(self._connection, members_dn=member_dns, groups_dn=group_dn, fix=True)
 
+    def create_object(self, name: str, parent_dn: str, object_class: str,
+                      properties: dict = None) -> str:
+        log.info(
+            f"Создание нового объекта в каталоге name='{name}' path='{parent_dn}' class='{object_class}' attrs='{str(properties)}'")
+        if properties is None:
+            properties = dict()
+        if object_class == "user" or object_class == "group":
+            dn = "CN=" + name + "," + parent_dn
+            if "sAMAccountName" not in properties:
+                properties["sAMAccountName"] = name
+        elif object_class == "organizationalUnit":
+            dn = "OU=" + name + "," + parent_dn
+        else:
+            dn = ""
+        if "name" not in properties:
+            properties["name"] = name
+        if dn != "":
+            try:
+                log.info(f"Финальные аттрибуты для создания объекта dn='{dn}', object_class='{object_class}', "
+                         f"attributes='{properties}'")
+                self._connection.add(dn=dn, object_class=object_class, attributes=properties)
+                log.info(f"Создание оъекта '{dn}' УСПЕХ")
+                return dn
+            except Exception as e:
+                log.error(f"Создание оъекта '{dn}' ОШИБКА: {e}")
+                print(e)
 
+    def get_group_manager(self, group, properties: typing.List[str] = None) -> dict:
+        if "managedBy" in group.__dict__:
+            return self.get_object(group.__dict__["managedBy"], properties=properties)
+
+    def get_group_membership(self, object_dn, properties: typing.List[str] = None) -> typing.List[dict]:
+        return self.search_objects(property_name="member:1.2.840.113556.1.4.1941:", property_value=object_dn,
+                                   properties=properties)
+
+    def set_group_manager(self, group_dn: str, manager_dn: str):
+        log.info(f"Назначение для группы '{group_dn}' владельца '{manager_dn}'")
+        manager = self.get_object(uniq_value=manager_dn, properties=["sAMAccountName"])
+        netbios_login = f"{self.net_bios_name}\\{manager.__dict__['sAMAccountName']}"
+        log.info(f"Запуск программы сброса разрешений для группы '{group_dn}'")
+        if reset_ldap_object_access(object_dn=group_dn):
+            log.info(f"Запуск программы сброса разрешений для группы '{group_dn}' УСПЕШНО")
+            log.info(f"Запуск программы назначения разрешений для группы '{group_dn}'")
+            if grant_write_property_access(object_dn=group_dn, netbios_login=netbios_login, property_name="member"):
+                log.info(f"Запуск программы назначения разрешений для группы '{group_dn}' УСПЕШНО")
+                log.info(f"Модификация аттрибута 'managedBy' объекта '{group_dn}' -> '{manager_dn}")
+                self._connection.modify(group_dn, {"managedBy": ["MODIFY_REPLACE", [manager_dn]]})
 
 
 
