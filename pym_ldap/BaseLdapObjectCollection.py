@@ -1,7 +1,7 @@
 import typing
 
 
-class BaseLdapObjectCollection:
+class BaseLdapObjectCollection(typing.Iterable):
 
     def __str__(self) -> str:
         return str([str(obj) for obj in self])

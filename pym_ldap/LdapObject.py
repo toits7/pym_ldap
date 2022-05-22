@@ -49,3 +49,6 @@ class LdapObject:
 
     def __str__(self) -> str:
         return self.name
+
+    def __repr__(self):
+        return f"LdapObject({self._properties})"

@@ -4,10 +4,6 @@ import json
 import os
 from ldap3.extend.microsoft.addMembersToGroups import ad_add_members_to_groups as add_group_member
 from ldap3.extend.microsoft.removeMembersFromGroups import ad_remove_members_from_groups as remove_group_member
-from .LdapDomainInterface import LdapDomainInterface
-#from .LdapObject import LdapObject
-#from .LdapObjectCollection import LdapObjectCollection
-#import inspect
 from operator import itemgetter
 from .Functions import grant_write_property_access, reset_ldap_object_access
 import pym_logger as logger
@@ -18,7 +14,7 @@ begin_str = '=' * 50 + "НАЧАЛО" + '=' * 50
 end_str = '=' * 50 + "КОНЕЦ" + '=' * 50
 
 
-class BaseLdapDomain(LdapDomainInterface):
+class BaseLdapDomain:
     _ldap_server: ldap3.Server = None
     _connection: ldap3.Connection = None
     _mandatory_properties = ("name", "distinguishedName", "objectClass", "description")
@@ -49,7 +45,7 @@ class BaseLdapDomain(LdapDomainInterface):
         username = self.__build_net_bios_username(username=username)
         connection = ldap3.Connection(server=self._ldap_server, user=username, password=password,
                                       return_empty_attributes=True)
-        #connection.server.connect_timeout = 3
+        # connection.server.connect_timeout = 3
         try:
             if connection.bind():
                 if connection.result.get("description") == "success":
@@ -74,7 +70,7 @@ class BaseLdapDomain(LdapDomainInterface):
         properties = self.__load_properties(json_file_path=json_file_path)
         if properties:
             self.__init_properties(**properties)
-            #self.__set_class_uniq_property_names()
+            # self.__set_class_uniq_property_names()
 
     @property
     def name(self) -> str:
@@ -89,12 +85,8 @@ class BaseLdapDomain(LdapDomainInterface):
         return self._server
 
     @property
-    def user(self) -> dict:
+    def current_user(self) -> dict:
         return self._current_user
-
-    @property
-    def properties(self) -> typing.Dict[str, str]:
-        return self._properties
 
     @staticmethod
     def __load_properties(json_file_path: str) -> dict:
@@ -120,7 +112,7 @@ class BaseLdapDomain(LdapDomainInterface):
         self._org_unit_properties = org_unit_properties
         self._org_unit_id_property_name = org_unit_id_property_name
 
-    #def __set_class_uniq_property_names(self):
+    # def __set_class_uniq_property_names(self):
     #    self._user_id_property_name = self._user_id_property_name
     #    self._group_id_property_name = self._group_id_property_name
     #    self._org_unit_id_property_name = self._org_unit_id_property_name
@@ -155,7 +147,7 @@ class BaseLdapDomain(LdapDomainInterface):
         if self._connection and not self._connection.closed:
             log.debug("Получение текущего пользователя из домена")
             samaccountname = re.sub(r".*\\", "", self._connection.user)
-            self._current_user = self.get_user_ex(uniq_value=samaccountname)
+            self._current_user = self._get_user_ex(uniq_value=samaccountname)
         else:
             log.critical("Отсутствует соединение с сервером")
 
@@ -204,7 +196,7 @@ class BaseLdapDomain(LdapDomainInterface):
             return property_name
         else:
             log.error(f"Не получено имя аттрибута '{property_name}'")
-    
+
     def __build_properties(self, properties: typing.List[str]) -> typing.List[str]:
         if properties:
             search_properties = list(set(properties) | set(self._mandatory_properties))
@@ -225,7 +217,7 @@ class BaseLdapDomain(LdapDomainInterface):
     def __search(self, search_filter: str, search_base: str, search_scope: str, search_properties: list) \
             -> typing.List[dict]:
         search_properties = [prop.lower() for prop in search_properties]
-        results = list()
+        results: typing.List[dict] = list()
         if self._connection is not None:
             try:
                 entries = self._connection.extend.standard.paged_search(search_filter=search_filter,
@@ -235,7 +227,7 @@ class BaseLdapDomain(LdapDomainInterface):
                                                                         paged_size=1000,
                                                                         generator=False)
                 for entry in entries:
-                    if entry["type"] == "searchResEntry":
+                    if entry["type"] == "searchResEntry" and entry["dn"] != search_base:
                         results.append(entry["attributes"])
                 results = sorted(results, key=itemgetter("name"))
             except Exception as e:
@@ -244,35 +236,35 @@ class BaseLdapDomain(LdapDomainInterface):
             log.error("Не возможно выполнить запрос на сервер так как отсутствует соединение.")
         return results
 
-    def get_object(self, uniq_value: str, properties: typing.List[str] = None, object_class: str = None) -> dict:
+    def _get_object(self, uniq_value: str, properties: typing.List[str] = None, object_class: str = None) -> dict:
         search_filter = self.__build_filter(uniq_value=uniq_value, object_class=object_class)
         search_properties = self.__build_properties(properties)
         entries = self.__search(search_filter, self._dn, ldap3.SUBTREE, search_properties)
         if entries and len(entries) > 0:
             return entries[0]
-            #return LdapObject(entries[0])
+            # return LdapObject(entries[0])
 
-    def get_objects(self, uniq_values: typing.List[str], properties: typing.List[str] = None, object_class: str = None) \
+    def _get_objects(self, uniq_values: typing.List[str], properties: typing.List[str] = None, object_class: str = None) \
             -> typing.List[dict]:
         result: typing.List[dict] = list()
         for uniq_value in uniq_values:
-            ldap_object = self.get_object(uniq_value=uniq_value, properties=properties, object_class=object_class)
+            ldap_object = self._get_object(uniq_value=uniq_value, properties=properties, object_class=object_class)
             if ldap_object:
                 result.append(ldap_object)
         return result
 
-    def get_user(self, uniq_value: str, properties: typing.List[str] = None) -> dict:
-        return self.get_object(uniq_value=uniq_value, properties=properties, object_class="user")
-    
-    def get_group(self, uniq_value: str, properties: typing.List[str] = None) -> dict:
-        return self.get_object(uniq_value=uniq_value, properties=properties, object_class="group")
-    
-    def get_org_unit(self, uniq_value: str, properties: typing.List[str] = None) -> dict:
-        return self.get_object(uniq_value=uniq_value, properties=properties, object_class="organizationalUnit")
-    
-    def search_objects(self, property_name: str = None, property_value: str = None, search_base: str = None,
-                       properties: typing.List[str] = None, object_class: str = None, recursive: bool = True,
-                       properties_dict: dict = None) -> typing.Any:
+    def _get_user(self, uniq_value: str, properties: typing.List[str] = None) -> dict:
+        return self._get_object(uniq_value=uniq_value, properties=properties, object_class="user")
+
+    def _get_group(self, uniq_value: str, properties: typing.List[str] = None) -> dict:
+        return self._get_object(uniq_value=uniq_value, properties=properties, object_class="group")
+
+    def _get_org_unit(self, uniq_value: str, properties: typing.List[str] = None) -> dict:
+        return self._get_object(uniq_value=uniq_value, properties=properties, object_class="organizationalUnit")
+
+    def _search_objects(self, property_name: str = None, property_value: str = None, search_base: str = None,
+                        properties: typing.List[str] = None, object_class: str = None, recursive: bool = True,
+                        properties_dict: dict = None) -> typing.List[dict]:
         search_filter = self.__build_filter(property_name=property_name, property_value=property_value,
                                             object_class=object_class, properties_dict=properties_dict)
         if not search_base:
@@ -284,58 +276,64 @@ class BaseLdapDomain(LdapDomainInterface):
         search_properties = self.__build_properties(properties)
         entries = self.__search(search_filter, search_base, search_scope, search_properties)
         return entries
-        #return LdapObjectCollection(entries)
-    
-    def search_users(self, property_name: str = None, property_value: str = None, search_base: str = None,
-                     properties: typing.List[str] = None, recursive: bool = True, properties_dict: dict = None) \
-            -> typing.List[dict]:
-        return self.search_objects(property_name=property_name, property_value=property_value, recursive=recursive, 
-                                   properties=properties, object_class="user", search_base=search_base,
-                                   properties_dict=properties_dict)
+        # return LdapObjectCollection(entries)
 
-    def search_groups(self, property_name: str = None, property_value: str = None, search_base: str = None,
+    def _search_users(self, property_name: str = None, property_value: str = None, search_base: str = None,
                       properties: typing.List[str] = None, recursive: bool = True, properties_dict: dict = None) \
             -> typing.List[dict]:
-        return self.search_objects(property_name=property_name, property_value=property_value, recursive=recursive,
-                                   properties=properties, object_class="group", search_base=search_base,
-                                   properties_dict=properties_dict)
-    
-    def search_org_units(self, property_name: str = None, property_value: str = None, search_base: str = None,
-                         properties: typing.List[str] = None, recursive: bool = True, properties_dict: dict = None) \
+        return self._search_objects(property_name=property_name, property_value=property_value, recursive=recursive,
+                                    properties=properties, object_class="user", search_base=search_base,
+                                    properties_dict=properties_dict)
+
+    def _search_groups(self, property_name: str = None, property_value: str = None, search_base: str = None,
+                       properties: typing.List[str] = None, recursive: bool = True, properties_dict: dict = None) \
             -> typing.List[dict]:
-        return self.search_objects(property_name=property_name, property_value=property_value, recursive=recursive, 
-                                   properties=properties, object_class="organizationalUnit", search_base=search_base,
-                                   properties_dict=properties_dict)
+        return self._search_objects(property_name=property_name, property_value=property_value, recursive=recursive,
+                                    properties=properties, object_class="group", search_base=search_base,
+                                    properties_dict=properties_dict)
 
-    def get_user_ex(self, uniq_value: str) -> dict:
-        return self.get_user(uniq_value=uniq_value, properties=self._user_properties)
+    def _search_org_units(self, property_name: str = None, property_value: str = None, search_base: str = None,
+                          properties: typing.List[str] = None, recursive: bool = True, properties_dict: dict = None) \
+            -> typing.List[dict]:
+        return self._search_objects(property_name=property_name, property_value=property_value, recursive=recursive,
+                                    properties=properties, object_class="organizationalUnit", search_base=search_base,
+                                    properties_dict=properties_dict)
 
-    def get_group_ex(self, uniq_value: str) -> dict:
-        return self.get_group(uniq_value=uniq_value, properties=self._group_properties)
+    def _get_user_ex(self, uniq_value: str) -> dict:
+        return self._get_user(uniq_value=uniq_value, properties=self._user_properties)
 
-    def get_org_unit_ex(self, uniq_value: str) -> dict:
-        return self.get_org_unit(uniq_value=uniq_value, properties=self._org_unit_properties)
+    def _get_group_ex(self, uniq_value: str) -> dict:
+        return self._get_group(uniq_value=uniq_value, properties=self._group_properties)
 
-    def search_users_ex(self, property_name: str = None, property_value: str = None, recursive: bool = True,
-                        properties_dict: dict = None) -> typing.List[dict]:
-        return self.search_users(property_name=property_name, property_value=property_value, recursive=recursive,
-                                 search_base=self._default_search_base, properties=self._user_properties,
-                                 properties_dict=properties_dict)
+    def _get_org_unit_ex(self, uniq_value: str) -> dict:
+        return self._get_org_unit(uniq_value=uniq_value, properties=self._org_unit_properties)
 
-    def search_groups_ex(self, property_name: str = None, property_value: str = None, recursive: bool = True,
+    def _search_users_ex(self, property_name: str = None, property_value: str = None, recursive: bool = True,
                          properties_dict: dict = None) -> typing.List[dict]:
-        return self.search_groups(property_name=property_name, property_value=property_value, recursive=recursive,
-                                  search_base=self._default_search_base, properties=self._group_properties,
+        return self._search_users(property_name=property_name, property_value=property_value, recursive=recursive,
+                                  search_base=self._default_search_base, properties=self._user_properties,
                                   properties_dict=properties_dict)
 
-    def search_org_units_ex(self, property_name: str = None, property_value: str = None, recursive: bool = True,
-                            properties_dict: dict = None) -> typing.List[dict]:
-        return self.search_org_units(property_name=property_name, property_value=property_value, recursive=recursive,
-                                     search_base=self._default_search_base, properties=self._org_unit_properties,
-                                     properties_dict=properties_dict)
-        
-    def __str__(self):
-        return self._name
+    def _search_groups_ex(self, property_name: str = None, property_value: str = None, recursive: bool = True,
+                          properties_dict: dict = None) -> typing.List[dict]:
+        return self._search_groups(property_name=property_name, property_value=property_value, recursive=recursive,
+                                   search_base=self._default_search_base, properties=self._group_properties,
+                                   properties_dict=properties_dict)
+
+    def _search_org_units_ex(self, property_name: str = None, property_value: str = None, recursive: bool = True,
+                             properties_dict: dict = None) -> typing.List[dict]:
+        return self._search_org_units(property_name=property_name, property_value=property_value, recursive=recursive,
+                                      search_base=self._default_search_base, properties=self._org_unit_properties,
+                                      properties_dict=properties_dict)
+
+    def _get_group_manager(self, group_dn: str, properties: typing.List[str] = None) -> dict:
+        group = self._get_group(uniq_value=group_dn, properties=["managedBy"])
+        if "managedBy" in group and group["managedBy"]:
+            return self._get_object(group["managedBy"], properties=properties)
+
+    def _get_group_membership(self, object_dn, properties: typing.List[str] = None) -> typing.List[dict]:
+        return self._search_groups(property_name="member:1.2.840.113556.1.4.1941:", property_value=object_dn,
+                                   properties=properties)
 
     def add_group_members(self, group_dn, member_dns):
         add_group_member(self._connection, members_dn=member_dns, groups_dn=group_dn, fix=True)
@@ -370,18 +368,10 @@ class BaseLdapDomain(LdapDomainInterface):
                 log.error(f"Создание оъекта '{dn}' ОШИБКА: {e}")
                 print(e)
 
-    def get_group_manager(self, group, properties: typing.List[str] = None) -> dict:
-        if "managedBy" in group.__dict__:
-            return self.get_object(group.__dict__["managedBy"], properties=properties)
-
-    def get_group_membership(self, object_dn, properties: typing.List[str] = None) -> typing.List[dict]:
-        return self.search_objects(property_name="member:1.2.840.113556.1.4.1941:", property_value=object_dn,
-                                   properties=properties)
-
     def set_group_manager(self, group_dn: str, manager_dn: str):
         log.info(f"Назначение для группы '{group_dn}' владельца '{manager_dn}'")
-        manager = self.get_object(uniq_value=manager_dn, properties=["sAMAccountName"])
-        netbios_login = f"{self.net_bios_name}\\{manager.__dict__['sAMAccountName']}"
+        manager = self._get_object(uniq_value=manager_dn, properties=["sAMAccountName"])
+        netbios_login = f"{self.net_bios_name}\\{manager['sAMAccountName']}"
         log.info(f"Запуск программы сброса разрешений для группы '{group_dn}'")
         if reset_ldap_object_access(object_dn=group_dn):
             log.info(f"Запуск программы сброса разрешений для группы '{group_dn}' УСПЕШНО")
@@ -391,5 +381,5 @@ class BaseLdapDomain(LdapDomainInterface):
                 log.info(f"Модификация аттрибута 'managedBy' объекта '{group_dn}' -> '{manager_dn}")
                 self._connection.modify(group_dn, {"managedBy": ["MODIFY_REPLACE", [manager_dn]]})
 
-
-
+    def __str__(self):
+        return self._name
