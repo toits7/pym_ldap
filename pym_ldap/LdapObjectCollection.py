@@ -10,7 +10,9 @@ class LdapObjectCollection(typing.List[LdapObject], BaseLdapObjectCollection):
         if list_dicts:
             for ldap_object_dict in list_dicts:
                 self.append(LdapObject(ldap_object_dict))
-
+    
+    def __call__(self, uniq_value: str) -> LdapObject:
+        return super(LdapObjectCollection, self).__call__(uniq_value=uniq_value)
 
 """
 

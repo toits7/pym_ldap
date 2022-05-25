@@ -15,43 +15,59 @@ end_str = '=' * 50 + "КОНЕЦ" + '=' * 50
 
 
 class BaseLdapDomain:
-    _ldap_server: ldap3.Server = None
-    _connection: ldap3.Connection = None
     _mandatory_properties = ("name", "distinguishedName", "objectClass", "description")
 
-    def __init__(self, name: str, server: str = None):
-        self._name = name.lower()
-        if server:
-            self._server = server
+    def __init__(self, name: str = None, server: str = None, external_name: str = None, default_search_base: str = None,
+                 disabled_org_unit_dn: str = None, user_properties: typing.List[str] = None,
+                 group_properties: typing.List[str] = None, org_unit_properties: typing.List[str] = None,
+                 user_id_property_name: str = None, group_id_property_name: str = None,
+                 org_unit_id_property_name: str = None):
+        if name:
+            self._name = name.lower()
         else:
-            self._server = name.lower()
+            self._name = os.environ["USERDNSDOMAIN"].lower()
+        if server:
+            self._server = ldap3.Server(server, get_info=ldap3.ALL)
+        else:
+            self._server = ldap3.Server(self._name, get_info=ldap3.ALL)
         self._netbios_name = self.__build_net_bios_domain_name()
         self._dn = self.__build_root_dn()
-        self._properties: typing.Dict[str, str] = dict()
-        self._current_user: dict = None
+        #self._properties: typing.Dict[str, str] = dict()
+        self._external_name: str = external_name
+        self._default_search_base: str = default_search_base
+        self._disabled_org_unit_dn: str = disabled_org_unit_dn
+        self._user_properties: typing.List[str] = user_properties
+        self._user_id_property_name: str = user_id_property_name
+        self._group_properties: typing.List[str] = group_properties
+        self._group_id_property_name: str = group_id_property_name
+        self._org_unit_properties: typing.List[str] = org_unit_properties
+        self._org_unit_id_property_name: str = org_unit_id_property_name
 
-        self._external_name: str = None
-        self._default_search_base: str = None
-        self._disabled_org_unit: str = None
-        self._user_properties: typing.List[str] = None
-        self._user_id_property_name: str = None
-        self._group_properties: typing.List[str] = None
-        self._group_id_property_name: str = None
-        self._org_unit_properties: typing.List[str] = None
-        self._org_unit_id_property_name: str = None
+        self._current_user: dict = None
+        self._connection: ldap3.Connection = None
+
+    @classmethod
+    def load_from_json(cls, json_file_path: str):
+        if os.path.exists(json_file_path):
+            log.info(f"Чтение конфигурационного файла домена: '{json_file_path}'")
+            with open(json_file_path, 'r', encoding='utf-8') as json_file:
+                properties = json.load(json_file)
+                instance = cls(**properties)
+                return instance
+        else:
+            log.error(f"Конфигурационного домена не существует: '{json_file_path}'")
+        return None
 
     def connect(self, username: str, password: str) -> bool:
-        self._ldap_server = ldap3.Server(self._server, get_info=ldap3.ALL)
         username = self.__build_net_bios_username(username=username)
-        connection = ldap3.Connection(server=self._ldap_server, user=username, password=password,
+        connection = ldap3.Connection(server=self._server, user=username, password=password,
                                       return_empty_attributes=True)
-        # connection.server.connect_timeout = 3
         try:
             if connection.bind():
                 if connection.result.get("description") == "success":
                     log.info(f"Подключение к контроллеру домена '{connection.server.name}' УСПЕШНО")
                     self._connection = connection
-                    self.__set_schema_properties()
+                    #self.__set_schema_properties()
                     self.__set_current_user()
                     return True
                 else:
@@ -66,12 +82,6 @@ class BaseLdapDomain:
             print(e)
             return False
 
-    def configure(self, json_file_path: str):
-        properties = self.__load_properties(json_file_path=json_file_path)
-        if properties:
-            self.__init_properties(**properties)
-            # self.__set_class_uniq_property_names()
-
     @property
     def name(self) -> str:
         return self._name
@@ -82,40 +92,11 @@ class BaseLdapDomain:
 
     @property
     def server(self) -> str:
-        return self._server
+        return self._server.host
 
     @property
     def current_user(self) -> dict:
         return self._current_user
-
-    @staticmethod
-    def __load_properties(json_file_path: str) -> dict:
-        properties = None
-        if os.path.exists(json_file_path):
-            log.info(f"Чтение конфигурационного файла домена: '{json_file_path}'")
-            with open(json_file_path, 'r', encoding='utf-8') as json_file:
-                properties = json.load(json_file)
-        else:
-            log.error(f"Конфигурационного домена не существует: '{json_file_path}'")
-        return properties
-
-    def __init_properties(self, external_name: str, default_search_base: str, inactive_org_unit_dn: str,
-                          user_properties: list, group_properties: list, org_unit_properties: list,
-                          user_id_property_name: str, group_id_property_name: str, org_unit_id_property_name: str):
-        self._external_name = external_name.lower()
-        self._default_search_base = default_search_base
-        self._disabled_org_unit = inactive_org_unit_dn
-        self._user_properties = user_properties
-        self._user_id_property_name = user_id_property_name
-        self._group_properties = group_properties
-        self._group_id_property_name = group_id_property_name
-        self._org_unit_properties = org_unit_properties
-        self._org_unit_id_property_name = org_unit_id_property_name
-
-    # def __set_class_uniq_property_names(self):
-    #    self._user_id_property_name = self._user_id_property_name
-    #    self._group_id_property_name = self._group_id_property_name
-    #    self._org_unit_id_property_name = self._org_unit_id_property_name
 
     def __build_net_bios_username(self, username: str) -> str:
         if "\\" not in username:
@@ -133,13 +114,15 @@ class BaseLdapDomain:
         name_parts = self._name.split('.')
         return name_parts[0].upper()
 
-    def __set_schema_properties(self):
+    def __get_schema_properties(self) -> dict:
         log.info(f"Конфигурирование домена")
         if self._connection and not self._connection.closed:
             log.debug("Запрос аттрибутов из схемы домен контроллера")
+            properties = dict()
             for k, v in self._connection.server.schema.attribute_types._case_insensitive_keymap.items():
                 if not k.startswith("ms"):
-                    self._properties[k] = v
+                    properties[k] = v
+            return properties
         else:
             log.critical("Отсутствует соединение с сервером")
 
@@ -156,13 +139,16 @@ class BaseLdapDomain:
         log.debug("Генерация фильтра поиска")
         search_filter = ""
         if uniq_value is not None:
+            uniq_value = uniq_value.replace('(', '\\28').replace(')', '\\29')
             uniq_property_name = self.__build_property_name(property_value=uniq_value, object_class=object_class)
             if uniq_property_name:
                 search_filter += f"({uniq_property_name}={uniq_value})"
         if property_name is not None and property_value is not None:
+            property_value = property_value.replace('(', '\\28').replace(')', '\\29')
             search_filter += f"({property_name}={property_value})"
         if properties_dict is not None:
             for key, value in properties_dict.items():
+                value = value.replace('(', '\\28').replace(')', '\\29')
                 search_filter += f"({key}={value})"
         if object_class is not None:
             if object_class.lower() == "user":

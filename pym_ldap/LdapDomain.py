@@ -6,6 +6,16 @@ import inspect
 
 
 class LdapDomain(BaseLdapDomain):
+
+    def __init__(self, **kwargs):
+        super(LdapDomain, self).__init__(**kwargs)
+        if self._user_id_property_name:
+            LdapObject._user_id_property_name = self._user_id_property_name
+        if self._group_id_property_name:
+            LdapObject._group_id_property_name = self._group_id_property_name
+        if self._org_unit_id_property_name:
+            LdapObject._org_unit_id_property_name = self._org_unit_id_property_name
+    
     @property
     def current_user(self) -> LdapObject:
         return LdapObject(self._current_user)
@@ -100,8 +110,8 @@ class LdapDomain(BaseLdapDomain):
 
     def get_group_members(self, group: LdapObject) -> LdapObjectCollection:
         result = LdapObjectCollection()
-        if group.is_group and group.get_property_value("member"):
-            member_dns = group.get_property_value("member")
+        if group.is_group and group("member"):
+            member_dns = group("member")
             for member_dn in member_dns:
                 result.append(self.get_object(member_dn))
         return result
