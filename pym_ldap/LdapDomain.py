@@ -47,6 +47,11 @@ class LdapDomain(BaseLdapDomain):
         kwargs = {k: v for k, v in locals().items() if k in args}
         return LdapObject(self._get_org_unit(**kwargs))
 
+    def get_computer(self, uniq_value: str, properties: typing.List[str] = None) -> LdapObject:
+        args = inspect.getfullargspec(self.get_computer).args[1:]
+        kwargs = {k: v for k, v in locals().items() if k in args}
+        return LdapObject(self._get_computer(**kwargs))
+
     def get_user_ex(self, uniq_value: str) -> LdapObject:
         args = inspect.getfullargspec(self.get_user_ex).args[1:]
         kwargs = {k: v for k, v in locals().items() if k in args}
@@ -61,6 +66,11 @@ class LdapDomain(BaseLdapDomain):
         args = inspect.getfullargspec(self.get_org_unit_ex).args[1:]
         kwargs = {k: v for k, v in locals().items() if k in args}
         return LdapObject(self._get_org_unit_ex(**kwargs))
+
+    def get_computer_ex(self, uniq_value: str) -> LdapObject:
+        args = inspect.getfullargspec(self.get_computer_ex).args[1:]
+        kwargs = {k: v for k, v in locals().items() if k in args}
+        return LdapObject(self._get_computer_ex(**kwargs))
 
     def search_objects(self, property_name: str = None, property_value: str = None, search_base: str = None,
                        properties: typing.List[str] = None, object_class: str = None, recursive: bool = True,
@@ -90,23 +100,36 @@ class LdapDomain(BaseLdapDomain):
         kwargs = {k: v for k, v in locals().items() if k in args}
         return LdapObjectCollection(self._search_org_units(**kwargs))
 
+    def search_computers(self, property_name: str = None, property_value: str = None, search_base: str = None,
+                         properties: typing.List[str] = None, recursive: bool = True,
+                         properties_dict: dict = None) -> LdapObjectCollection:
+        args = inspect.getfullargspec(self.search_computers).args[1:]
+        kwargs = {k: v for k, v in locals().items() if k in args}
+        return LdapObjectCollection(self._search_computers(**kwargs))
+
     def search_users_ex(self, property_name: str = None, property_value: str = None, recursive: bool = True,
-                        properties_dict: dict = None) -> LdapObjectCollection:
+                        properties_dict: dict = None, search_base: str = None) -> LdapObjectCollection:
         args = inspect.getfullargspec(self.search_users_ex).args[1:]
         kwargs = {k: v for k, v in locals().items() if k in args}
         return LdapObjectCollection(self._search_users_ex(**kwargs))
 
     def search_groups_ex(self, property_name: str = None, property_value: str = None, recursive: bool = True,
-                         properties_dict: dict = None) -> LdapObjectCollection:
+                         properties_dict: dict = None, search_base: str = None) -> LdapObjectCollection:
         args = inspect.getfullargspec(self.search_groups_ex).args[1:]
         kwargs = {k: v for k, v in locals().items() if k in args}
         return LdapObjectCollection(self._search_groups_ex(**kwargs))
 
     def search_org_units_ex(self, property_name: str = None, property_value: str = None, recursive: bool = True,
-                            properties_dict: dict = None) -> LdapObjectCollection:
+                            properties_dict: dict = None, search_base: str = None) -> LdapObjectCollection:
         args = inspect.getfullargspec(self.search_org_units_ex).args[1:]
         kwargs = {k: v for k, v in locals().items() if k in args}
         return LdapObjectCollection(self._search_org_units_ex(**kwargs))
+
+    def search_computers_ex(self, property_name: str = None, property_value: str = None, recursive: bool = True,
+                            properties_dict: dict = None, search_base: str = None) -> LdapObjectCollection:
+        args = inspect.getfullargspec(self.search_computers_ex).args[1:]
+        kwargs = {k: v for k, v in locals().items() if k in args}
+        return LdapObjectCollection(self._search_computers_ex(**kwargs))
 
     def get_group_members(self, group: LdapObject) -> LdapObjectCollection:
         result = LdapObjectCollection()

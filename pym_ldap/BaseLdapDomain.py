@@ -6,22 +6,22 @@ from ldap3.extend.microsoft.addMembersToGroups import ad_add_members_to_groups a
 from ldap3.extend.microsoft.removeMembersFromGroups import ad_remove_members_from_groups as remove_group_member
 from operator import itemgetter
 from .Functions import grant_write_property_access, reset_ldap_object_access
-import pym_logger as logger
+import logging
 import re
 
-log = logger.get_logger(__name__)
+log = logging.getLogger(__name__)
 begin_str = '=' * 50 + "НАЧАЛО" + '=' * 50
 end_str = '=' * 50 + "КОНЕЦ" + '=' * 50
 
 
 class BaseLdapDomain:
-    _mandatory_properties = ("name", "distinguishedName", "objectClass", "description")
+    _mandatory_properties = ("name", "distinguishedName", "objectClass")
 
     def __init__(self, name: str = None, server: str = None, external_name: str = None, default_search_base: str = None,
                  disabled_org_unit_dn: str = None, user_properties: typing.List[str] = None,
                  group_properties: typing.List[str] = None, org_unit_properties: typing.List[str] = None,
                  user_id_property_name: str = None, group_id_property_name: str = None,
-                 org_unit_id_property_name: str = None):
+                 org_unit_id_property_name: str = None, computer_properties: typing.List[str] = None):
         if name:
             self._name = name.lower()
         else:
@@ -42,6 +42,7 @@ class BaseLdapDomain:
         self._group_id_property_name: str = group_id_property_name
         self._org_unit_properties: typing.List[str] = org_unit_properties
         self._org_unit_id_property_name: str = org_unit_id_property_name
+        self._computer_properties: typing.List[str] = computer_properties
 
         self._current_user: dict = None
         self._connection: ldap3.Connection = None
@@ -55,7 +56,7 @@ class BaseLdapDomain:
                 instance = cls(**properties)
                 return instance
         else:
-            log.error(f"Конфигурационного домена не существует: '{json_file_path}'")
+            log.error(f"Конфигурационного файла домена не существует: '{json_file_path}'")
         return None
 
     def connect(self, username: str, password: str) -> bool:
@@ -248,6 +249,11 @@ class BaseLdapDomain:
     def _get_org_unit(self, uniq_value: str, properties: typing.List[str] = None) -> dict:
         return self._get_object(uniq_value=uniq_value, properties=properties, object_class="organizationalUnit")
 
+    def _get_computer(self, uniq_value: str, properties: typing.List[str] = None) -> dict:
+        if not uniq_value.endswith("$"):
+            uniq_value = uniq_value + "$"
+        return self._get_object(uniq_value=uniq_value, properties=properties, object_class="computer")
+
     def _search_objects(self, property_name: str = None, property_value: str = None, search_base: str = None,
                         properties: typing.List[str] = None, object_class: str = None, recursive: bool = True,
                         properties_dict: dict = None) -> typing.List[dict]:
@@ -285,6 +291,13 @@ class BaseLdapDomain:
                                     properties=properties, object_class="organizationalUnit", search_base=search_base,
                                     properties_dict=properties_dict)
 
+    def _search_computers(self, property_name: str = None, property_value: str = None, search_base: str = None,
+                          properties: typing.List[str] = None, recursive: bool = True, properties_dict: dict = None) \
+            -> typing.List[dict]:
+        return self._search_objects(property_name=property_name, property_value=property_value, recursive=recursive,
+                                    properties=properties, object_class="computer", search_base=search_base,
+                                    properties_dict=properties_dict)
+
     def _get_user_ex(self, uniq_value: str) -> dict:
         return self._get_user(uniq_value=uniq_value, properties=self._user_properties)
 
@@ -294,22 +307,39 @@ class BaseLdapDomain:
     def _get_org_unit_ex(self, uniq_value: str) -> dict:
         return self._get_org_unit(uniq_value=uniq_value, properties=self._org_unit_properties)
 
+    def _get_computer_ex(self, uniq_value: str) -> dict:
+        return self._get_computer(uniq_value=uniq_value, properties=self._computer_properties)
+
     def _search_users_ex(self, property_name: str = None, property_value: str = None, recursive: bool = True,
-                         properties_dict: dict = None) -> typing.List[dict]:
+                         properties_dict: dict = None, search_base: str = None) -> typing.List[dict]:
+        if not search_base:
+            search_base = self._default_search_base
         return self._search_users(property_name=property_name, property_value=property_value, recursive=recursive,
-                                  search_base=self._default_search_base, properties=self._user_properties,
+                                  search_base=search_base, properties=self._user_properties,
                                   properties_dict=properties_dict)
 
     def _search_groups_ex(self, property_name: str = None, property_value: str = None, recursive: bool = True,
-                          properties_dict: dict = None) -> typing.List[dict]:
+                          properties_dict: dict = None, search_base: str = None) -> typing.List[dict]:
+        if not search_base:
+            search_base = self._default_search_base
         return self._search_groups(property_name=property_name, property_value=property_value, recursive=recursive,
-                                   search_base=self._default_search_base, properties=self._group_properties,
+                                   search_base=search_base, properties=self._group_properties,
                                    properties_dict=properties_dict)
 
     def _search_org_units_ex(self, property_name: str = None, property_value: str = None, recursive: bool = True,
-                             properties_dict: dict = None) -> typing.List[dict]:
+                             properties_dict: dict = None, search_base: str = None) -> typing.List[dict]:
+        if not search_base:
+            search_base = self._default_search_base
         return self._search_org_units(property_name=property_name, property_value=property_value, recursive=recursive,
-                                      search_base=self._default_search_base, properties=self._org_unit_properties,
+                                      search_base=search_base, properties=self._org_unit_properties,
+                                      properties_dict=properties_dict)
+
+    def _search_computers_ex(self, property_name: str = None, property_value: str = None, recursive: bool = True,
+                             properties_dict: dict = None, search_base: str = None) -> typing.List[dict]:
+        if not search_base:
+            search_base = self._default_search_base
+        return self._search_computers(property_name=property_name, property_value=property_value, recursive=recursive,
+                                      search_base=search_base, properties=self._computer_properties,
                                       properties_dict=properties_dict)
 
     def _get_group_manager(self, group_dn: str, properties: typing.List[str] = None) -> dict:

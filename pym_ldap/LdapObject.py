@@ -19,8 +19,10 @@ class LdapObject:
     def __call__(self, property_name: str):
         if self.has_property(property_name=property_name):
             property_value = self.__getattr__(property_name)
-        else:
+        elif property_name in self.__dict__:
             property_value = self.__getattribute__(property_name)
+        else:
+            property_value = None
         if isinstance(property_value, list) and property_name.lower() not in self.__multi_val_props:
             property_value = ' '.join(property_value)
         return property_value
@@ -57,21 +59,17 @@ class LdapObject:
         else:
             return ""
 
-    @property
     def is_user(self) -> bool:
         return self.object_class == "user"
 
-    @property
     def is_group(self) -> bool:
         return self.object_class == "group"
 
-    @property
     def is_org_unit(self) -> bool:
         return self.object_class == "organizationalUnit"
 
-    @property
-    def description(self) -> str:
-        return self.__getattr__("description")
+    def is_computer(self) -> bool:
+        return self.object_class == "computer"
 
     def has_property(self, property_name: str):
         return property_name in self._properties

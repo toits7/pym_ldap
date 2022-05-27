@@ -1,8 +1,8 @@
 import subprocess
 import os
-import pym_logger as logger
+import logging
 
-log = logger.get_logger(__name__)
+log = logging.getLogger(__name__)
 
 
 def grant_write_property_access(object_dn: str, netbios_login: str, property_name: str, server: str = None):
