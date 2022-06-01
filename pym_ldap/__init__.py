@@ -5,7 +5,11 @@ from .LdapDomain import LdapDomain
 from .BaseLdapObjectCollection import BaseLdapObjectCollection
 import typing
 
-domain: typing.Optional[LdapDomain] = None
+domain: typing.Optional[LdapDomain]
+try:
+    domain = LdapDomain()
+except:
+    domain = None
 
 
 def set_domain(ldap_domain: LdapDomain):

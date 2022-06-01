@@ -1,3 +1,2 @@
 ldap3
-logger
-git+https://github.com/toits7/pym_logger.git
+winkerberos

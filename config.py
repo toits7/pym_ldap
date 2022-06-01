@@ -32,4 +32,4 @@ def get_stream_handler():
 
 
 logging.basicConfig(level=log_level, format=log_format, handlers=[get_stream_handler(), get_file_handler()])
-set_domain(LdapDomain.load_from_json("domain.json"))
+#set_domain(LdapDomain.load_from_json("domain.json"))

@@ -1,6 +1,7 @@
 import typing
 import ldap3
 import json
+import ssl
 import os
 from ldap3.extend.microsoft.addMembersToGroups import ad_add_members_to_groups as add_group_member
 from ldap3.extend.microsoft.removeMembersFromGroups import ad_remove_members_from_groups as remove_group_member
@@ -17,35 +18,31 @@ end_str = '=' * 50 + "КОНЕЦ" + '=' * 50
 class BaseLdapDomain:
     _mandatory_properties = ("name", "distinguishedName", "objectClass")
 
-    def __init__(self, name: str = None, server: str = None, external_name: str = None, default_search_base: str = None,
-                 disabled_org_unit_dn: str = None, user_properties: typing.List[str] = None,
-                 group_properties: typing.List[str] = None, org_unit_properties: typing.List[str] = None,
-                 user_id_property_name: str = None, group_id_property_name: str = None,
-                 org_unit_id_property_name: str = None, computer_properties: typing.List[str] = None):
+    def __init__(self, name: str = None, server: str = None):
         if name:
             self._name = name.lower()
         else:
             self._name = os.environ["USERDNSDOMAIN"].lower()
         if server:
-            self._server = ldap3.Server(server, get_info=ldap3.ALL)
+            self._ldap_host = server
         else:
-            self._server = ldap3.Server(self._name, get_info=ldap3.ALL)
+            self._ldap_host = os.environ["LOGONSERVER"].replace(r"\\", "")
         self._netbios_name = self.__build_net_bios_domain_name()
         self._dn = self.__build_root_dn()
-        #self._properties: typing.Dict[str, str] = dict()
-        self._external_name: str = external_name
-        self._default_search_base: str = default_search_base
-        self._disabled_org_unit_dn: str = disabled_org_unit_dn
-        self._user_properties: typing.List[str] = user_properties
-        self._user_id_property_name: str = user_id_property_name
-        self._group_properties: typing.List[str] = group_properties
-        self._group_id_property_name: str = group_id_property_name
-        self._org_unit_properties: typing.List[str] = org_unit_properties
-        self._org_unit_id_property_name: str = org_unit_id_property_name
-        self._computer_properties: typing.List[str] = computer_properties
+        self._external_name: typing.Optional[str] = None
+        self._default_search_base: typing.Optional[str] = None
+        self._disabled_org_unit_dn: typing.Optional[str] = None
+        self._user_properties: typing.Optional[typing.List[str]] = None
+        self._user_id_property_name: typing.Optional[str] = None
+        self._group_properties: typing.Optional[typing.List[str]] = None
+        self._group_id_property_name: typing.Optional[str] = None
+        self._org_unit_properties: typing.Optional[typing.List[str]] = None
+        self._org_unit_id_property_name: typing.Optional[str] = None
+        self._computer_properties: typing.Optional[typing.List[str]] = None
 
-        self._current_user: dict = None
-        self._connection: ldap3.Connection = None
+        self._current_user: typing.Optional[dict] = None
+        self._connection: typing.Optional[ldap3.Connection] = None
+        self._server: typing.Optional[ldap3.Server] = None
 
     @classmethod
     def load_from_json(cls, json_file_path: str):
@@ -57,18 +54,27 @@ class BaseLdapDomain:
                 return instance
         else:
             log.error(f"Конфигурационного файла домена не существует: '{json_file_path}'")
-        return None
 
-    def connect(self, username: str, password: str) -> bool:
-        username = self.__build_net_bios_username(username=username)
-        connection = ldap3.Connection(server=self._server, user=username, password=password,
-                                      return_empty_attributes=True)
+    def connect(self, username: str = None, password: str = None, use_ssl: bool = True) -> bool:
+        if use_ssl:
+            tls = ldap3.Tls(validate=ssl.CERT_NONE, version=ssl.PROTOCOL_TLSv1)
+            self._server = ldap3.Server(self._ldap_host, use_ssl=True, tls=tls)
+        else:
+            self._server = ldap3.Server(self._ldap_host)
+        if username and password:
+            username = self.__build_net_bios_username(username=username)
+            connection = ldap3.Connection(server=self._server, user=username, password=password,
+                                          return_empty_attributes=True)
+        else:
+            connection = ldap3.Connection(server=self._server, authentication=ldap3.SASL, sasl_mechanism=ldap3.GSSAPI,
+                                          return_empty_attributes=True)
+
         try:
             if connection.bind():
                 if connection.result.get("description") == "success":
                     log.info(f"Подключение к контроллеру домена '{connection.server.name}' УСПЕШНО")
                     self._connection = connection
-                    #self.__set_schema_properties()
+                    # self.__set_schema_properties()
                     self.__set_current_user()
                     return True
                 else:
@@ -83,6 +89,34 @@ class BaseLdapDomain:
             print(e)
             return False
 
+    def configure(self, external_name: str = None, default_search_base: str = None,
+                  disabled_org_unit_dn: str = None, user_properties: typing.List[str] = None,
+                  group_properties: typing.List[str] = None, org_unit_properties: typing.List[str] = None,
+                  user_id_property_name: str = None, group_id_property_name: str = None,
+                  org_unit_id_property_name: str = None, computer_properties: typing.List[str] = None):
+        self._external_name = external_name
+        self._default_search_base = default_search_base
+        self._disabled_org_unit_dn = disabled_org_unit_dn
+        self._user_properties = user_properties
+        self._user_id_property_name = user_id_property_name
+        self._group_properties = group_properties
+        self._group_id_property_name = group_id_property_name
+        self._org_unit_properties = org_unit_properties
+        self._org_unit_id_property_name = org_unit_id_property_name
+        self._computer_properties = computer_properties
+
+    def configure_from_json(self, json_file_path: str = None):
+        if not json_file_path:
+            json_file_path = os.path.join(os.path.dirname(__file__), "domain.json")
+        if os.path.exists(json_file_path):
+            log.info(f"Чтение конфигурационного файла домена: '{json_file_path}'")
+            with open(json_file_path, 'r', encoding='utf-8') as json_file:
+                properties = json.load(json_file)
+                self.configure(**properties)
+        else:
+            log.error(f"Конфигурационного файла домена не существует: '{json_file_path}'")
+
+
     @property
     def name(self) -> str:
         return self._name
@@ -93,7 +127,7 @@ class BaseLdapDomain:
 
     @property
     def server(self) -> str:
-        return self._server.host
+        return self._ldap_host
 
     @property
     def current_user(self) -> dict:
@@ -130,7 +164,8 @@ class BaseLdapDomain:
     def __set_current_user(self):
         if self._connection and not self._connection.closed:
             log.debug("Получение текущего пользователя из домена")
-            samaccountname = re.sub(r".*\\", "", self._connection.user)
+            netbios_username = self._connection.extend.standard.who_am_i().split(":")[1]
+            samaccountname = netbios_username.split("\\")[1]
             self._current_user = self._get_user_ex(uniq_value=samaccountname)
         else:
             log.critical("Отсутствует соединение с сервером")

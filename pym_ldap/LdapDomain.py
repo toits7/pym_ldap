@@ -7,8 +7,17 @@ import inspect
 
 class LdapDomain(BaseLdapDomain):
 
-    def __init__(self, **kwargs):
-        super(LdapDomain, self).__init__(**kwargs)
+    def __init__(self, name: str = None, server: str = None):
+        super(LdapDomain, self).__init__(name=name, server=server)
+
+    def configure(self, external_name: str = None, default_search_base: str = None,
+                  disabled_org_unit_dn: str = None, user_properties: typing.List[str] = None,
+                  group_properties: typing.List[str] = None, org_unit_properties: typing.List[str] = None,
+                  user_id_property_name: str = None, group_id_property_name: str = None,
+                  org_unit_id_property_name: str = None, computer_properties: typing.List[str] = None):
+        args = inspect.getfullargspec(self.configure).args[1:]
+        kwargs = {k: v for k, v in locals().items() if k in args}
+        super(LdapDomain, self).configure(**kwargs)
         if self._user_id_property_name:
             LdapObject._user_id_property_name = self._user_id_property_name
         if self._group_id_property_name:
