@@ -116,7 +116,6 @@ class BaseLdapDomain:
         else:
             log.error(f"Конфигурационного файла домена не существует: '{json_file_path}'")
 
-
     @property
     def name(self) -> str:
         return self._name

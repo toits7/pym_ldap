@@ -17,12 +17,19 @@ class LdapObject:
         return f"LdapObject({self._properties})"
 
     def __call__(self, property_name: str):
-        if self.has_property(property_name=property_name):
-            property_value = self.__getattr__(property_name)
-        elif property_name in self.__dict__:
+        #if self.has_property(property_name=property_name):
+            #property_value = self.__getattr__(property_name)
+        #elif property_name in self.__dict__:
+            #property_value = self.__getattribute__(property_name)
+        #else:
+            #property_value = None
+        try:
             property_value = self.__getattribute__(property_name)
-        else:
-            property_value = None
+        except:
+            if self.has_property(property_name):
+                property_value = self._properties[property_name]
+            else:
+                property_value = None
         if isinstance(property_value, list) and property_name.lower() not in self.__multi_val_props:
             property_value = ' '.join(property_value)
         return property_value
