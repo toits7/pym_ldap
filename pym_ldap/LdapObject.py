@@ -1,7 +1,10 @@
 import typing
+from .BaseLdapDomain import BaseLdapDomain
+import inspect
 
 
 class LdapObject:
+    __domain: BaseLdapDomain
     __multi_val_props = ["memberof", "member", "objectclass"]
     _user_id_property_name: str
     _group_id_property_name: str
@@ -9,6 +12,17 @@ class LdapObject:
 
     def __init__(self, ldap_entry: dict):
         self._properties = ldap_entry
+
+    @classmethod
+    def get_object(cls, uniq_value: str, properties: typing.List[str] = None,
+                   object_class: str = None):
+        args = inspect.getfullargspec(cls.get_object).args[1:]
+        kwargs = {k: v for k, v in locals().items() if k in args}
+        return cls(cls.__domain._get_object(**kwargs))
+
+    @classmethod
+    def set_domain(cls, domain: BaseLdapDomain):
+        cls.__domain = domain
 
     def __str__(self) -> str:
         return self.name
