@@ -1,6 +1,6 @@
-import subprocess
 import os
 import logging
+from pym_utils import exec_win_cmd
 
 log = logging.getLogger(__name__)
 
@@ -32,18 +32,6 @@ def reset_ldap_object_access(object_dn: str, server: str = None):
         return True
     else:
         return False
-
-
-def exec_win_cmd(command: str) -> int:
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="cp866", shell=True)
-    log.debug(f"Выполнение команды windows cmd {command}")
-    result = process.communicate()
-    output = result[0]
-    errors = result[1]
-    if errors != "":
-        log.warning(errors)
-    log.debug(output)
-    return process.returncode
 
 
 def get_dsacls_path() -> str:
