@@ -64,10 +64,10 @@ class BaseLdapDomain:
         if username and password:
             username = self.__build_net_bios_username(username=username)
             connection = ldap3.Connection(server=self._server, user=username, password=password,
-                                          return_empty_attributes=True)
+                                          return_empty_attributes=True, client_strategy=ldap3.RESTARTABLE)
         else:
             connection = ldap3.Connection(server=self._server, authentication=ldap3.SASL, sasl_mechanism=ldap3.GSSAPI,
-                                          return_empty_attributes=True)
+                                          return_empty_attributes=True, client_strategy=ldap3.RESTARTABLE)
 
         try:
             if connection.bind():
