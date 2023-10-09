@@ -1,0 +1,49 @@
+{
+    "group_properties":  [
+                            "Description",
+                            "DistinguishedName",
+                            "Info",
+                            "Mail",
+                            "Member",
+                            "ObjectSid",
+                            "SAMAccountName"
+                        ],
+    "group_id_property_name":  "Info",
+    "org_unit_id_property_name":  "PostalCode",
+    "user_id_property_name":  "EmployeeId",
+    "external_name":  "tyuiu.ru",
+    "org_unit_properties":  [
+                            "Description",
+                            "PostalCode",
+                            "Name",
+                            "St"
+						  ],
+    "default_search_base":  "OU=Пользователи,OU=Сотрудники,DC=tgngu,DC=loc",
+    "disabled_org_unit_dn":  "OU=Уволенные,DC=tgngu,DC=loc",
+    "user_properties":  [
+                           "PersonalTitle",
+                           "Cn",
+                           "SamAccountName",
+                           "Comment",
+                           "DepartmentNumber",
+                           "Description",
+                           "DisplayName",
+                           "DistinguishedName",
+                           "Division",
+                           "EmployeeId",
+                           "Enabled",
+                           "FacsimileTelephoneNumber",
+                           "GivenName",
+                           "HomePhone",
+                           "Info",
+                           "IpPhone",
+                           "Mail",
+                           "MemberOf",
+                           "ObjectSid",
+                           "Pager",
+                           "PhysicalDeliveryOfficeName",
+                           "SAMAccountName",
+                           "Sn",
+                           "Title"
+                       ]
+}
