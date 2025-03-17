@@ -14,12 +14,6 @@ class LdapObject:
         return f"LdapObject({self._properties})"
 
     def __call__(self, property_name: str):
-        #if self.has_property(property_name=property_name):
-            #property_value = self.__getattr__(property_name)
-        #elif property_name in self.__dict__:
-            #property_value = self.__getattribute__(property_name)
-        #else:
-            #property_value = None
         try:
             property_value = self.__getattribute__(property_name)
         except:
@@ -43,6 +37,10 @@ class LdapObject:
     @property
     def dn(self) -> str:
         return self.__getattr__("distinguishedName")
+
+    @property
+    def guid(self) -> str:
+        return self.__getattr__("objectGUID").replace('{', '').replace('}', '')
 
     @property
     def name(self) -> str:

@@ -6,7 +6,6 @@ import os
 from ldap3.extend.microsoft.addMembersToGroups import ad_add_members_to_groups as add_group_member
 from ldap3.extend.microsoft.removeMembersFromGroups import ad_remove_members_from_groups as remove_group_member
 from operator import itemgetter
-from .Functions import grant_write_property_access, reset_ldap_object_access
 import logging
 import re
 
@@ -16,7 +15,7 @@ end_str = '=' * 50 + "КОНЕЦ" + '=' * 50
 
 
 class BaseLdapDomain:
-    _mandatory_properties = ("name", "distinguishedName", "objectClass")
+    _mandatory_properties = ("name", "distinguishedName", "objectClass", "objectGUID")
 
     def __init__(self, name: str = None, server: str = None):
         if name:
@@ -187,8 +186,10 @@ class BaseLdapDomain:
                 search_filter += f"({key}={value})"
         if object_class is not None:
             if object_class.lower() == "user":
-                search_filter += f"(objectClass={object_class})"
+                search_filter += f"(objectCategory=Person)(objectClass={object_class})"
             elif object_class.lower() == "group":
+                search_filter += f"(objectClass={object_class})"
+            elif object_class.lower() == "computer":
                 search_filter += f"(objectClass={object_class})"
             elif object_class.lower() == "orgunit" or object_class.lower() == "organizationalunit":
                 search_filter += f"(objectClass={object_class})"
@@ -203,6 +204,8 @@ class BaseLdapDomain:
         property_name: str = ""
         if property_value.lower().endswith(self._dn):
             property_name = "distinguishedName"
+        elif property_value.startswith("{") and object_class:
+            property_name = "objectGUID"
         elif property_value.startswith("0") and object_class:
             if object_class == "user" and self._user_id_property_name:
                 property_name = self._user_id_property_name
@@ -225,7 +228,7 @@ class BaseLdapDomain:
             search_properties = self._mandatory_properties
         return search_properties
 
-    def __get_class_properties(self, object_class):
+    def get_class_properties(self, object_class):
         log.debug(f"Получение словаря аттрибутов для класса {object_class}")
         if self._connection:
             class_def = ldap3.ObjectDef(object_class, self._connection)
@@ -419,6 +422,7 @@ class BaseLdapDomain:
                 print(e)
 
     def set_group_manager(self, group_dn: str, manager_dn: str):
+        from .Functions import grant_write_property_access, reset_ldap_object_access
         log.info(f"Назначение для группы '{group_dn}' владельца '{manager_dn}'")
         manager = self._get_object(uniq_value=manager_dn, properties=["sAMAccountName"])
         netbios_login = f"{self.net_bios_name}\\{manager['sAMAccountName']}"
