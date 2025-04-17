@@ -1,5 +1,6 @@
 from .LdapObject import LdapObject
 from .LdapObjectCollection import LdapObjectCollection
+from .BaseLdapObjectCollection import BaseLdapObjectCollection
 from .LdapDomain import LdapDomain
 import typing
 
