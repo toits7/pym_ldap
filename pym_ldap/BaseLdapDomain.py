@@ -26,8 +26,9 @@ class BaseLdapDomain:
         elif sys.platform == 'linux':
             from .linux_utils import parse_krb5_conf
             krb_config = parse_krb5_conf()
-            current_domain_name = krb_config['libdefaults']['default_realm'].lower()
-            current_logon_server = krb_config['realms'][current_domain_name]['admin_server'][0]
+            current_realm = krb_config['libdefaults']['default_realm']
+            current_domain_name = current_realm.lower()
+            current_logon_server = krb_config['realms'][current_realm]['admin_server'][0]
         else:
             current_domain_name = ""
             current_logon_server = ""
