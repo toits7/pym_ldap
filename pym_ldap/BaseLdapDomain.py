@@ -1,3 +1,4 @@
+import sys
 import typing
 import ldap3
 import json
@@ -9,6 +10,7 @@ from operator import itemgetter
 import logging
 import re
 
+
 log = logging.getLogger(__name__)
 begin_str = '=' * 50 + "НАЧАЛО" + '=' * 50
 end_str = '=' * 50 + "КОНЕЦ" + '=' * 50
@@ -18,14 +20,25 @@ class BaseLdapDomain:
     _mandatory_properties = ("name", "distinguishedName", "objectClass", "objectGUID")
 
     def __init__(self, name: str = None, server: str = None):
+        if sys.platform == 'win32':
+            current_domain_name = os.environ["USERDNSDOMAIN"].lower()
+            current_logon_server = os.environ["LOGONSERVER"].strip('\\')
+        elif sys.platform == 'linux':
+            from .linux_utils import parse_krb5_conf
+            krb_config = parse_krb5_conf()
+            current_domain_name = krb_config['libdefaults']['default_realm'].lower()
+            current_logon_server = krb_config['realms'][current_domain_name]['admin_server'][0]
+        else:
+            current_domain_name = ""
+            current_logon_server = ""
         if name:
             self._name = name.lower()
         else:
-            self._name = os.environ["USERDNSDOMAIN"].lower()
+            self._name = current_domain_name
         if server:
             self._ldap_host = server
         else:
-            self._ldap_host = os.environ["LOGONSERVER"].replace(r"\\", "")
+            self._ldap_host = current_logon_server
         self._netbios_name = self.__build_net_bios_domain_name()
         self._dn = self.__build_root_dn()
         self._external_name: typing.Optional[str] = None
